@@ -5,6 +5,7 @@ const { userModel } = require("./Models/user.model");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { Auth } = require("./Middleware/Auth");
+const axios = require("axios");
 
 const server = express();
 
@@ -38,7 +39,24 @@ server.get("/user/:id", Auth, async (req, res) => {
 });
 
 server.post("/signup", async (req, res) => {
-  const { email, username } = req.body;
+  const { email, username } = req.body.signupData;
+  const token = req.body.recaptchaToken;
+
+  const response = await axios.post(
+    `https://www.google.com/recaptcha/api/siteverify`,
+    null,
+    {
+      params: {
+        secret: process.env.GOOGLE_SECRET_KEY,
+        response: token,
+      },
+    }
+  );
+
+  if (!response.data.success) {
+    res.status(400).send({ message: "Problem in recaptcha" });
+    return;
+  }
 
   const userEmailPresent = await userModel.find({ email });
   const userUsernamePresent = await userModel.find({ username });
@@ -54,10 +72,10 @@ server.post("/signup", async (req, res) => {
   }
 
   try {
-    bcrypt.hash(req.body.password, 5, async (err, hash) => {
+    bcrypt.hash(req.body.signupData.password, 5, async (err, hash) => {
       if (err) res.status(400).send({ message: err });
       else {
-        const user = userModel({ ...req.body, password: hash });
+        const user = userModel({ ...req.body.signupData, password: hash });
         await user.save();
         res.status(200).send({ message: "Signup Successful" });
       }
@@ -68,7 +86,24 @@ server.post("/signup", async (req, res) => {
 });
 
 server.post("/login", async (req, res) => {
-  const { username, password } = req.body;
+  const { username, password } = req.body.loginData;
+  const token = req.body.recaptchaToken;
+
+  const response = await axios.post(
+    `https://www.google.com/recaptcha/api/siteverify`,
+    null,
+    {
+      params: {
+        secret: process.env.GOOGLE_SECRET_KEY,
+        response: token,
+      },
+    }
+  );
+
+  if (!response.data.success) {
+    res.status(400).send({ message: "Problem in recaptcha" });
+    return;
+  }
 
   if (username === "harshadmin" && password === "harsh12") {
     const token = jwt.sign({ username }, process.env.SECRET);
